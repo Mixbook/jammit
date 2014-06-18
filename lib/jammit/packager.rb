@@ -65,7 +65,9 @@ module Jammit
       raise OutputNotWritable, "Jammit doesn't have permission to write to \"#{output_dir}\"" unless File.writable?(output_dir)
       mtime ||= latest_mtime package_for(package, extension.to_sym)[:paths]
       files = []
-      fingerprint = Digest::MD5.hexdigest(contents)
+      # We encode the fingerprint with UTF-8 since otherwise its yaml representation is
+      # an unreadable binary string
+      fingerprint = Digest::MD5.hexdigest(contents).encode("UTF-8")
       name = Jammit.fingerprints_enabled? ? "#{package}-#{fingerprint}" : package
       files << file_name = File.join(output_dir, Jammit.filename(name, extension, suffix))
       File.open(file_name, 'wb+') {|f| f.write(contents) }
@@ -136,7 +138,7 @@ module Jammit
     #    something:
     #      - "/foo/bar/public/javascripts/shomething.js"
     #
-    # In Rails, the difference between a path and an asset URL is "public".    
+    # In Rails, the difference between a path and an asset URL is "public".
     def path_to_url
       @path_to_url ||= /\A(#{Array.wrap(Jammit.configuration[:root_paths]).map { |path| Regexp.escape(path) }.join("|")})(.*public)?/
     end
