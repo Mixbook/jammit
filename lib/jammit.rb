@@ -52,12 +52,12 @@ module Jammit
 
   class << self
     attr_reader   :configuration, :template_function, :template_namespace,
-                  :embed_assets, :package_assets, :compress_assets, :gzip_assets,
+                  :embed_assets, :tag_assets, :package_assets, :compress_assets, :gzip_assets,
                   :package_path, :mhtml_enabled, :include_jst_script, :config_path,
                   :javascript_compressor, :compressor_options, :css_compressor,
                   :css_compressor_options, :template_extension,
                   :template_extension_matcher, :allow_debugging,
-                  :rewrite_relative_paths, :public_root
+                  :rewrite_relative_paths, :public_root, :fingerprints
     attr_accessor :javascript_compressors, :css_compressors
   end
 
@@ -77,6 +77,14 @@ module Jammit
     raise MissingConfiguration, "could not find the \"#{config_path}\" configuration file" unless exists
     conf = YAML.load(ERB.new(File.read(config_path)).result)
 
+    conf["root_paths"] ||= []
+    conf["root_paths"] << ASSET_ROOT
+    (conf["includes"] || []).map do |include_path|
+      new_config = YAML.load(ERB.new(File.read(include_path)).result)
+      conf = new_config.deep_merge(conf)
+      conf["root_paths"] << new_config["root_path"]
+    end
+
     # Optionally overwrite configuration based on the environment.
     rails_env = (defined?(Rails) ? ::Rails.env : ENV['RAILS_ENV'] || "development")
     conf.merge! conf.delete rails_env if conf.has_key? rails_env
@@ -85,6 +93,7 @@ module Jammit
     @configuration          = symbolize_keys(conf)
     @package_path           = conf[:package_path] || DEFAULT_PACKAGE_PATH
     @embed_assets           = conf[:embed_assets] || conf[:embed_images]
+    @tag_assets             = conf[:tag_assets].nil? || conf[:tag_assets] # defaults to true
     @compress_assets        = !(conf[:compress_assets] == false)
     @rewrite_relative_paths = !(conf[:rewrite_relative_paths] == false)
     @gzip_assets            = !(conf[:gzip_assets] == false)
@@ -102,7 +111,17 @@ module Jammit
     symbolize_keys(conf[:stylesheets]) if conf[:stylesheets]
     symbolize_keys(conf[:javascripts]) if conf[:javascripts]
     check_for_deprecations
+    @are_fingerprints_enabled = conf[:fingerprints_enabled]
+    @fingerprints = begin
+      YAML.load_file(config_path + ".lock")
+    rescue Errno::ENOENT
+      {}
+    end
     self
+  end
+
+  def self.fingerprints_enabled?
+    !!@are_fingerprints_enabled
   end
 
   # Force a reload by resetting the Packager and reloading the configuration.
@@ -127,7 +146,10 @@ module Jammit
   # Generates the server-absolute URL to an asset package.
   def self.asset_url(package, extension, suffix=nil, mtime=nil)
     timestamp = mtime ? "?#{mtime.to_i}" : ''
-    "/#{package_path}/#{filename(package, extension, suffix)}#{timestamp}"
+    fingerprint = if Jammit.fingerprints_enabled?
+      fingerprints[extension.to_s] && fingerprints[extension.to_s][package.to_s]
+    end
+    "/#{package_path}/#{filename("#{package}#{fingerprint ? "-#{fingerprint}" : ""}", extension, suffix)}#{timestamp}"
   end
 
   # Convenience method for packaging up Jammit, using the default options.
