@@ -222,7 +222,14 @@ module Jammit
     def rails_asset_id(path)
       asset_id = ENV["RAILS_ASSET_ID"]
       return asset_id if asset_id
-      File.exists?(path) ? File.mtime(path).to_i.to_s : ''
+      case Jammit.tag_assets
+      when "md5"
+        File.exists?(path) ? Digest::MD5.file(path).hexdigest : ''
+      when false
+        ''
+      else # mtime is default
+        File.exists?(path) ? File.mtime(path).to_i.to_s : ''
+      end
     end
 
     # An asset is valid for embedding if it exists, is less than 32K, and is

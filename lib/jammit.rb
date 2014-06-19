@@ -52,7 +52,7 @@ module Jammit
 
   class << self
     attr_reader   :configuration, :template_function, :template_namespace,
-                  :embed_assets, :package_assets, :compress_assets, :gzip_assets,
+                  :embed_assets, :tag_assets, :package_assets, :compress_assets, :gzip_assets,
                   :package_path, :mhtml_enabled, :include_jst_script, :config_path,
                   :javascript_compressor, :compressor_options, :css_compressor,
                   :css_compressor_options, :template_extension,
@@ -93,6 +93,7 @@ module Jammit
     @configuration          = symbolize_keys(conf)
     @package_path           = conf[:package_path] || DEFAULT_PACKAGE_PATH
     @embed_assets           = conf[:embed_assets] || conf[:embed_images]
+    @tag_assets             = conf[:tag_assets].nil? || conf[:tag_assets] # defaults to true
     @compress_assets        = !(conf[:compress_assets] == false)
     @rewrite_relative_paths = !(conf[:rewrite_relative_paths] == false)
     @gzip_assets            = !(conf[:gzip_assets] == false)
